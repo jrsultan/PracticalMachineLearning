@@ -1,0 +1,163 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Jeffrey Sultan"
+date: "July 31, 2019"
+output: html_document
+---
+
+## Introduction
+
+The goal of this project is to predict the manner in which participants performed an exercise. Data was gathered from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. For this project, data was gathered on how well performed they performed barbell lifts, and these will be used as variables in the prediction model. Under the variable "classe" in the dataset, the value A means that the participant performed the exercise well, while the values B, C, D, and E pertains to the mistakes the participant did while performing the exercise.
+
+For this project, we first have to load the necessary libraries and the datasets itself, already split into training and testing data. After that, we perform some preprocessing by cleaning the data. With the datasets prepared, we train the model using a number of models, namely the Gradient Boosting Machine (GBM) model, Random Forest model, and lastly the Decision Tree model.
+
+## Loading the data and libraries
+
+For the project, we will be using the following libraries:
+
+``` {r message = FALSE, warning = FALSE}
+
+library(caret)
+library(ggplot2)
+library(randomForest)
+library(rpart)
+library(gbm)
+
+
+```
+
+Next, we load the datasets, which are already in the working directory:
+
+``` {r}
+
+trainingdata <- read.csv("pml-training.csv")
+testingdata <- read.csv("pml-testing.csv")
+
+```
+
+To have a short preview of the data:
+
+```{r}
+
+dim(trainingdata)
+dim(testingdata)
+
+```
+
+## Cleaning the data
+
+In order to process the data, we're going to remove the variables that contain NAs, and check the resulting number of variables:
+
+``` {r}
+trainingdata <- trainingdata[,(colSums(is.na(trainingdata)) == 0)]
+dim(trainingdata)
+
+testingdata <- testingdata[,(colSums(is.na(testingdata)) == 0)]
+dim(testingdata)
+
+```
+
+Upon further analysis, we can remove the first 7 variables as they have little to no impact to the classe variable:
+
+``` {r}
+
+trainingdata <- trainingdata[, -c(1:7)]
+testingdata <- testingdata[, -c(1:7)]
+dim(trainingdata)
+dim(testingdata)
+
+```
+
+We'll also remove the variables that have near-zero-variance (NZV):
+
+``` {r}
+NZV <- nearZeroVar(trainingdata)
+trainingdata <- trainingdata[, -NZV]
+dim(trainingdata)
+```
+
+## Exploring the data
+
+So that we have a better view of the data, here are the variables we are going to use for training:
+
+```{r}
+
+names(trainingdata)
+```
+
+## Model Building
+
+First, we prepare the data for modeling, by further splitting the training data into 70% train and 30% test datasets, while the earlier testingdata will be used to predict for the 20 cases:
+
+```{r}
+
+set.seed(24) 
+inTrain <- createDataPartition(trainingdata$classe, p = 0.7, list = FALSE)
+trainData <- trainingdata[inTrain, ]
+testData <- trainingdata[-inTrain, ]
+dim(trainData)
+
+```
+
+We're going to create three models and evaluate the results of each:
+
+1. Decision Trees
+2. Random Forest
+3. Gradient Boosing Machine
+
+### 1. Decision Trees:
+
+```{r cache = TRUE}
+set.seed(24)
+decisionTreeMod1 <- rpart(classe ~ ., data=trainData, method="class")
+predictTreeMod1 <- predict(decisionTreeMod1, testData, type = "class")
+cmtree <- confusionMatrix(predictTreeMod1, testData$classe)
+cmtree
+```
+
+As we can see, the model has an accuracy of **74.53%** and an out-of-sample error of around **0.3**.
+
+### 2. Random Forest
+
+```{r cache = TRUE}
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modRF1 <- train(classe ~ ., data=trainData, method="rf", trControl=controlRF)
+predictRF1 <- predict(modRF1, newdata=testData)
+cmrf <- confusionMatrix(predictRF1, testData$classe)
+cmrf
+```
+
+For this model, the accuracy of the results are **99.51%** and the out-of-sample error of around **0.3**.
+
+### 3. Gradient Boosting Machine
+
+```{r cache = TRUE}
+
+set.seed(24)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modGBM  <- train(classe ~ ., data=trainData, method = "gbm", trControl = controlGBM, verbose = FALSE)
+predictGBM <- predict(modGBM, newdata=testData)
+cmGBM <- confusionMatrix(predictGBM, testData$classe)
+cmGBM
+```
+
+After training this model, the accuracy of the results were **96.53%** and the out-of-sample error of around **0.3** also.
+
+## Applying Model to Prediction Cases
+
+The following are the results of the 3 models in terms of accuracy:
+
+Model Used   | Accuracy
+-------------|-------------
+Decision Tree|74.53%
+Random Forest|99.51%
+GBM          |96.53%
+
+As you can see, Random Forest has the highest accuracy, and therefore we will use that model for the following 20 cases:
+
+```{r}
+results <- predict(modRF1, newdata=testingdata)
+results
+```
+
+The results will be used for the quiz in Coursera.
